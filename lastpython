@@ -1,0 +1,59 @@
+import subprocess
+import re
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+def get_uptime_data():
+    # Befehl ausführen (wie in der Bash)
+    result = subprocess.run(['last', '-n', '40'], capture_output=True, text=True)
+    lines = result.stdout.splitlines()
+    
+    data = []
+    
+    # Regulärer Ausdruck, um die Dauer in Klammern zu finden (HH:MM)
+    # Und das Datum am Anfang der Zeile
+    for line in lines:
+        if "system boot" in line and "(" in line:
+            # Extrahiere die Zeit in den Klammern, z.B. (09:52)
+            match_duration = re.search(r'\((\d+):(\d+)\)', line)
+            # Extrahiere das Datum (vereinfacht: Wochentag und Monat/Tag)
+            match_date = re.search(r'[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d+', line)
+            
+            if match_duration and match_date:
+                hours = int(match_duration.group(1))
+                minutes = int(match_duration.group(2))
+                total_minutes = (hours * 60) + minutes
+                date_str = match_date.group(0)
+                
+                data.append({"Datum": date_str, "Dauer_Min": total_minutes})
+    
+    # Da 'last' die neuesten Einträge zuerst zeigt, drehen wir die Liste um
+    return pd.DataFrame(data).iloc[::-1]
+
+# Daten abrufen
+df = get_uptime_data()
+
+# Visualisierung
+sns.set_theme(style="whitegrid")
+plt.figure(figsize=(12, 6))
+
+plot = sns.barplot(data=df, x="Datum", y="Dauer_Min", palette="viridis", errorbar=None)
+
+plt.title("System-Laufzeit pro Boot-Vorgang (in Minuten)", fontsize=14)
+plt.xlabel("Datum des Boots", fontsize=12)
+plt.ylabel("Dauer (Minuten)", fontsize=12)
+plt.xticks(rotation=45)
+
+# Optional: Werte über die Balken schreiben
+for p in plot.patches:
+    plot.annotate(format(p.get_height(), '.0f'), 
+                   (p.get_x() + p.get_width() / 2., p.get_height()), 
+                   ha = 'center', va = 'center', 
+                   xytext = (0, 9), 
+                   textcoords = 'offset points')
+
+
+
+plt.tight_layout()
+plt.show()
